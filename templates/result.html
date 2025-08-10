@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tax Recommendation</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(120deg, #f6f9fc, #e9f2f9);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .card {
+      border-radius: 15px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .tip {
+      background: #fff8e1;
+      border-left: 4px solid #ffb300;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 8px;
+      font-size: 0.95em;
+    }
+    .chart img {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+    /* Colored regime suggestion card */
+    .regime-card {
+      border-radius: 12px;
+      padding: 20px;
+      color: white;
+      font-weight: 600;
+      font-size: 1.3rem;
+      text-align: center;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .regime-old {
+      background: #198754; /* Bootstrap success green */
+      border: 2px solid #145c32;
+    }
+    .regime-new {
+      background: #0d6efd; /* Bootstrap primary blue */
+      border: 2px solid #084298;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-10 col-md-12">
+        <div class="card p-4">
+          <h2 class="text-center mb-4">📊 Tax Recommendation</h2>
+
+          <!-- Regime suggestion colored card -->
+          {% if suggested_regime == 'old' %}
+            <div class="regime-card regime-old">
+              Recommended Regime: Old Regime ✅
+            </div>
+          {% elif suggested_regime == 'new' %}
+            <div class="regime-card regime-new">
+              Recommended Regime: New Regime ✅
+            </div>
+          {% endif %}
+
+          <h4 class="mb-3">Summary</h4>
+          <table class="table table-striped">
+            <tr><th>Income</th><td>₹{{ income|int }}</td></tr>
+            <tr><th>Age</th><td>{{ age }}</td></tr>
+            <tr>
+              <th>Claimed Deductions</th>
+              <td>
+                {% if deductions %}
+                  <ul class="mb-0">
+                  {% for k,v in deductions.items() %}
+                    <li>{{ k }}: ₹{{ v }}</li>
+                  {% endfor %}
+                  </ul>
+                {% else %}
+                  ₹0
+                {% endif %}
+              </td>
+            </tr>
+            <tr><th>Total Deductions (incl. ₹50,000 standard)</th><td>₹{{ total_deductions }}</td></tr>
+            <tr><th>Taxable Income (old)</th><td>₹{{ ti_old }}</td></tr>
+            <tr><th>Taxable Income (new)</th><td>₹{{ ti_new }}</td></tr>
+            <tr><th>Old Regime Tax</th><td>₹{{ old_tax|float | round(2) }}</td></tr>
+            <tr><th>New Regime Tax</th><td>₹{{ new_tax|float | round(2) }}</td></tr>
+            <tr><th>Suggested Regime</th><td><strong>{{ suggested_regime }}</strong></td></tr>
+          </table>
+
+          <h4 class="mt-4">💡 Tax-saving Tips</h4>
+          {% if tips %}
+            {% for s,g in tips %}
+              <div class="tip">Invest ₹{{ g }} more in <strong>{{ s }}</strong> to save tax.</div>
+            {% endfor %}
+          {% else %}
+            <div class="alert alert-success">No direct tips — you’re already using your deductions well.</div>
+          {% endif %}
+
+          <div class="chart text-center mt-4">
+            {% if chart_png %}
+              <img src="data:image/png;base64,{{ chart_png }}" alt="Tax chart">
+            {% else %}
+              <div class="alert alert-warning">Chart not available.</div>
+            {% endif %}
+          </div>
+
+          <div class="text-center mt-4">
+            <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">🔄 Run Again</a>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

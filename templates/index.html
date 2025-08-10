@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Tax Advisor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(120deg, #f6f9fc, #e9f2f9);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .card {
+      border-radius: 15px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .btn-custom {
+      background-color: #007bff;
+      color: white;
+      font-weight: bold;
+    }
+    .btn-custom:hover {
+      background-color: #0056b3;
+    }
+    .hint {
+      font-size: 0.85em;
+      color: #6c757d;
+    }
+    .invalid-input {
+      border-color: #dc3545 !important; /* Bootstrap danger red */
+      background-color: #f8d7da !important;
+    }
+    .warning-text {
+      color: #dc3545;
+      font-weight: 600;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-8 col-md-10">
+        <div class="card p-4">
+          <h2 class="text-center mb-3">💰 Tax Bracket Advisor</h2>
+          <p class="text-center text-muted">
+            Fill in your details and available deductions to see which tax regime is better for you.
+          </p>
+          
+          <form id="taxForm" method="post" action="{{ url_for('result') }}" novalidate>
+            <div class="mb-3">
+              <label class="form-label">Age</label>
+              <input required name="age" id="age" type="number" min="18" max="120" class="form-control" placeholder="e.g. 30">
+              <div id="ageError" class="warning-text d-none">Age must be between 18 and 120.</div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Annual Income (₹)</label>
+              <input required name="income" id="income" type="number" min="0" class="form-control" placeholder="e.g. 1200000">
+              <div id="incomeError" class="warning-text d-none">Income must be a positive number.</div>
+            </div>
+
+            <h5 class="mt-4">Deductions (optional)</h5>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">80C (LIC / PPF / EPF) – ₹150,000 limit</label>
+                <input name="80C" id="ded80C" type="number" min="0" max="150000" class="form-control" placeholder="e.g. 120000">
+                <div id="ded80CError" class="warning-text d-none">Exceeds limit of ₹150,000.</div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">EPF (part of 80C)</label>
+                <input name="EPF" id="dedEPF" type="number" min="0" class="form-control" placeholder="optional">
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">80D (Medical Insurance)</label>
+                <input name="80D" id="ded80D" type="number" min="0" class="form-control" placeholder="e.g. 25000">
+                <div class="hint">Limit: ₹25,000 (<60 yrs) or ₹50,000 (≥60 yrs)</div>
+                <div id="ded80DError" class="warning-text d-none">Exceeds allowed limit for your age.</div>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">80CCD(1B) / NPS</label>
+                <input name="80CCD_1B" id="dedNPS" type="number" min="0" class="form-control" placeholder="e.g. 50000">
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Life Insurance (part of 80C)</label>
+              <input name="LIFE" id="dedLife" type="number" min="0" class="form-control" placeholder="optional">
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-custom btn-lg">Calculate & Show Recommendation</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  (() => {
+    const form = document.getElementById('taxForm');
+
+    // Elements
+    const ageInput = document.getElementById('age');
+    const incomeInput = document.getElementById('income');
+    const ded80CInput = document.getElementById('ded80C');
+    const dedEPFInput = document.getElementById('dedEPF');
+    const ded80DInput = document.getElementById('ded80D');
+    const dedNPSInput = document.getElementById('dedNPS');
+    const dedLifeInput = document.getElementById('dedLife');
+
+    // Error elements
+    const ageError = document.getElementById('ageError');
+    const incomeError = document.getElementById('incomeError');
+    const ded80CError = document.getElementById('ded80CError');
+    const ded80DError = document.getElementById('ded80DError');
+
+    // Utility functions
+    function setError(elem, errorElem, condition) {
+      if (condition) {
+        elem.classList.add('invalid-input');
+        errorElem.classList.remove('d-none');
+      } else {
+        elem.classList.remove('invalid-input');
+        errorElem.classList.add('d-none');
+      }
+    }
+
+    // Validation
+    function validateAge() {
+      const val = parseInt(ageInput.value);
+      setError(ageInput, ageError, isNaN(val) || val < 18 || val > 120);
+      return !isNaN(val) && val >= 18 && val <= 120;
+    }
+
+    function validateIncome() {
+      const val = parseInt(incomeInput.value);
+      setError(incomeInput, incomeError, isNaN(val) || val < 0);
+      return !isNaN(val) && val >= 0;
+    }
+
+    function validateDeductions() {
+      let valid = true;
+
+      // 80C max 150,000
+      const val80C = parseInt(ded80CInput.value) || 0;
+      setError(ded80CInput, ded80CError, val80C > 150000);
+      if (val80C > 150000) valid = false;
+
+      // 80D limit depends on age: 25,000 or 50,000
+      const ageVal = parseInt(ageInput.value);
+      const val80D = parseInt(ded80DInput.value) || 0;
+      if (!isNaN(ageVal)) {
+        const max80D = ageVal >= 60 ? 50000 : 25000;
+        setError(ded80DInput, ded80DError, val80D > max80D);
+        if (val80D > max80D) valid = false;
+      } else {
+        // If age not valid, clear 80D error
+        setError(ded80DInput, ded80DError, false);
+      }
+
+      return valid;
+    }
+
+    // Attach events
+    ageInput.addEventListener('input', () => {
+      validateAge();
+      validateDeductions();
+    });
+    incomeInput.addEventListener('input', validateIncome);
+    ded80CInput.addEventListener('input', validateDeductions);
+    ded80DInput.addEventListener('input', validateDeductions);
+
+    form.addEventListener('submit', e => {
+      let valid = validateAge() && validateIncome() && validateDeductions();
+      if (!valid) {
+        e.preventDefault();
+        alert("Please fix the highlighted errors before submitting.");
+      }
+    });
+  })();
+</script>
+</body>
+</html>
