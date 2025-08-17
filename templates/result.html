@@ -90,7 +90,7 @@
             <tr><th>New Regime Tax</th><td>₹{{ new_tax|float | round(2) }}</td></tr>
             <tr><th>Suggested Regime</th><td><strong>{{ suggested_regime }}</strong></td></tr>
           </table>
-
+          <p><strong>Your Tax Slab:</strong> {{ slab_info }}</p>
           <h4 class="mt-4">💡 Tax-saving Tips</h4>
           {% if tips %}
             {% for s,g in tips %}

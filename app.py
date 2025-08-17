@@ -17,6 +17,35 @@ prolog.consult(PROLOG_FILE)
 # Simple lock to protect Prolog interactions (pyswip & SWI-Prolog are not fully thread-safe)
 prolog_lock = threading.Lock()
 
+def get_slab_from_prolog(income):
+    """Query Prolog to get the slab for given income."""
+    query = f"get_slab({income}, Slab)."
+    res = list(prolog.query(query, maxresult=1))
+    if res:
+        slab = res[0]["Slab"]
+
+        # Case 1: slab is a Prolog term tax("..","..")
+        if hasattr(slab, "args") and len(slab.args) == 2:
+            part1 = slab.args[0]
+            part2 = slab.args[1]
+            # decode if bytes
+            if isinstance(part1, bytes):
+                part1 = part1.decode()
+            if isinstance(part2, bytes):
+                part2 = part2.decode()
+            return f"{part1} – {part2}"
+
+        # Case 2: slab already comes back as a tuple/list
+        if isinstance(slab, (tuple, list)) and len(slab) == 2:
+            part1, part2 = slab
+            return f"{part1.decode() if isinstance(part1, bytes) else part1} – {part2.decode() if isinstance(part2, bytes) else part2}"
+
+        # Fallback
+        return str(slab)
+
+    return "Unknown"
+
+
 def run_prolog_clear_and_assert(age_val, income_val, deductions_dict):
     """
     Clear previous user facts and assert new ones for age, income and deductions.
@@ -170,6 +199,10 @@ def result():
         suggested = prolog_results['suggested_regime']
         tips = prolog_results['tips']
 
+        # Get slab info for current income
+        slab_info = get_slab_from_prolog(income)
+
+
         # make chart as base64 PNG
         chart_png = make_chart_base64(old_tax, new_tax)
 
@@ -186,7 +219,8 @@ def result():
             new_tax=new_tax,
             suggested_regime=suggested,
             tips=tips,
-            chart_png=chart_png
+            chart_png=chart_png,
+            slab_info=slab_info
         )
 
     except Exception as e:

@@ -49,6 +49,18 @@ max_deduction('NPS', 50000).
 % -----------------------------
 % Utility Rules
 
+% Get tax slab structure based on income
+get_slab(Income, tax("0–2.5L", "0%")) :-
+    Income =< 250000, !.
+
+get_slab(Income, tax("2.5L–5L", "5%")) :-
+    Income =< 500000, !.
+
+get_slab(Income, tax("5L–10L", "20%")) :-
+    Income =< 1000000, !.
+
+get_slab(_, tax("10L+", "30%")).
+
 unify_example :-
     X = tax(slab, rate),
     writeln(X).
