@@ -1,234 +1,209 @@
 % -----------------------------
 % Dynamic predicates
 :- dynamic tax_slab/3.
-:- dynamic user/3.
-:- dynamic income/2.
-:- dynamic deductions/3.
+:- dynamic income/1.
+:- dynamic age/1.
+:- dynamic regime/1.
+:- dynamic deduction/2.
 
 % -----------------------------
-% Sample Facts
+% Tax slabs FY 2024–25
 
-% user(Name, Age, Regime).
-user(ram, 30, old).
-user(sita, 26, new).
-user(kumar, 67, old).
-
-% income(Name, AnnualIncome).
-income(ram, 750000).
-income(sita, 850000).
-income(kumar, 600000).
-
-% deductions(Name, Section, Amount).
-deductions(ram, '80C', 120000).
-deductions(ram, '80D', 30000).
-deductions(kumar, '80C', 100000).
-deductions(sita, '80C', 0).  % new regime, no deduction
-
-% tax_slab(Regime, UpperLimit, Rate).
 % Old Regime
 tax_slab(old, 250000, 0).
 tax_slab(old, 500000, 0.05).
 tax_slab(old, 1000000, 0.2).
-tax_slab(old, 9999999, 0.3).
+tax_slab(old, 5000000, 0.3).
+tax_slab(old, 99999999, 0.3).  % surcharge applies separately
 
 % New Regime
 tax_slab(new, 300000, 0).
-tax_slab(new, 600000, 0.05).
-tax_slab(new, 900000, 0.1).
+tax_slab(new, 700000, 0.05).
+tax_slab(new, 1000000, 0.1).
 tax_slab(new, 1200000, 0.15).
 tax_slab(new, 1500000, 0.2).
-tax_slab(new, 9999999, 0.3).
+tax_slab(new, 5000000, 0.3).
+tax_slab(new, 99999999, 0.3).  % surcharge applies separately
+
+% -----------------------------
+% Surcharge slabs
+% Format: surcharge(Regime, IncomeThreshold, Rate)
+
+surcharge(_, 50000000, 0.1).         % ₹50L–₹1Cr
+surcharge(_, 100000000, 0.15).       % ₹1Cr–₹2Cr
+surcharge(old, 200000000, 0.25).     % ₹2Cr–₹5Cr (only old)
+surcharge(old, 999999999, 0.37).     % ₹5Cr+ (only old)
+surcharge(new, 999999999, 0.15).     % capped for new
+
+% -----------------------------
+% Max deduction limits (all section names quoted and upper-case to match Python)
+max_deduction('80C', 150000).
+max_deduction('80D', Max) :- age(A), (A >= 60 -> Max = 50000 ; Max = 25000).
+max_deduction('80CCD(1B)', 50000).
+max_deduction('EPF', 150000).
+max_deduction('Life Insurance', 150000).
+max_deduction('Standard', 50000).
+max_deduction('NPS', 50000).  % optional alias
 
 % -----------------------------
 % Utility Rules
 
-% Sum of deductions for a user
-total_deductions(User, Total) :-
-    findall(Amount, deductions(User, _, Amount), List),
-    sum_list(List, Total).
+print_max_deduction_limits :-
+    writeln("🔢 Maximum Deduction Limits (FY 2024–25):"),
+    age_based_80d_limit(L),
+    format(" - Medical Insurance (80D): ₹~w~n", [L]),
+    format(" - Life Insurance (80C): ₹150000~n"),
+    format(" - EPF (80C): ₹150000~n"),
+    format(" - NPS (80CCD(1B)): ₹50000~n"),
+    format(" - Standard Deduction: ₹50000 (auto applied)~n~n").
 
-% Age-based exemptions (for old regime only)
-age_based_exemption(Age, Exemption) :-
-    Age >= 60, Exemption is 300000.
-age_based_exemption(Age, Exemption) :-
-    Age < 60, Exemption is 250000.
+age_based_80d_limit(Limit) :-
+    age(A),
+    ( A >= 60 -> Limit = 50000 ; Limit = 25000 ).
 
-% Max allowed deduction limits
-max_deduction('80C', 150000).
-max_deduction('80D', 50000).
+total_deductions(Sum) :-
+    findall(A, deduction(_, A), L),
+    sum_list(L, Partial),
+    max_deduction('Standard', Std),
+    Sum is Partial + Std.
 
-% Sorted slabs for progressive calculation
+age_based_exemption(E) :-
+    age(A),
+    (A >= 60 -> E is 300000 ; E is 250000).
+
 get_sorted_slabs(Regime, Sorted) :-
-    findall((Limit, Rate), tax_slab(Regime, Limit, Rate), List),
-    sort(List, Sorted).
+    findall((Limit, Rate), tax_slab(Regime, Limit, Rate), L),
+    sort(L, Sorted).
 
 % -----------------------------
-% Core Rule: Taxable Income
+% Taxable Income
 
-% Taxable income after deductions and exemptions
-taxable_income(User, Taxable) :-
-    income(User, Income),
-    user(User, Age, Regime),
-    (
-        Regime = old ->
-            total_deductions(User, Deducted),
-            age_based_exemption(Age, Exemption),
-            Raw is Income - Deducted - Exemption,
-            Taxable is max(0, Raw)
-        ;
-        Taxable = Income
-    ).
+taxable_income(old, TI) :-
+    income(I),
+    total_deductions(D),
+    age_based_exemption(E),
+    Raw is I - D - E,
+    TI is max(0, Raw).
+
+taxable_income(new, TI) :-
+    income(I),
+    TI is I - 50000.  % Standard deduction only
 
 % -----------------------------
-% Progressive Tax Calculation
+% Progressive Tax Computation
 
-% Tax calculated slab by slab
 progressive_tax(_, _, [], _, 0).
-
 progressive_tax(Income, PrevLimit, [(Limit, Rate)|Rest], Acc, Tax) :-
     Income =< Limit,
     Portion is Income - PrevLimit,
-    TempTax is Portion * Rate,
-    Tax is Acc + TempTax.
+    Temp is Portion * Rate,
+    Tax is Acc + Temp.
 
 progressive_tax(Income, PrevLimit, [(Limit, Rate)|Rest], Acc, Tax) :-
     Income > Limit,
     Portion is Limit - PrevLimit,
-    TempTax is Portion * Rate,
-    NewAcc is Acc + TempTax,
+    Temp is Portion * Rate,
+    NewAcc is Acc + Temp,
     progressive_tax(Income, Limit, Rest, NewAcc, Tax).
 
-% Final rule to compute total tax
-compute_progressive_tax(User, Tax) :-
-    taxable_income(User, Taxable),
-    user(User, _, Regime),
+% -----------------------------
+% Surcharge Application
+
+apply_surcharge(Regime, BaseTax, FinalTax) :-
+    income(I),
+    findall((Limit, Rate), surcharge(Regime, Limit, Rate), Slabs),
+    sort(Slabs, Sorted),
+    find_surcharge_rate(I, Sorted, 0, SurchargeRate),
+    FinalTax is BaseTax * (1 + SurchargeRate).
+
+find_surcharge_rate(_, [], Rate, Rate).
+find_surcharge_rate(I, [(Limit, Rate)|_], _, Rate) :- I =< Limit, !.
+find_surcharge_rate(I, [_|Rest], _, Final) :- find_surcharge_rate(I, Rest, _, Final).
+
+% -----------------------------
+% Compute Final Tax
+
+compute_tax(Regime, FinalTax) :-
+    taxable_income(Regime, TI),
     get_sorted_slabs(Regime, Slabs),
-    progressive_tax(Taxable, 0, Slabs, 0, Tax).
+    progressive_tax(TI, 0, Slabs, 0, BaseTax),
+    apply_surcharge(Regime, BaseTax, FinalTax).
 
 % -----------------------------
 % Regime Suggestion
 
-suggest_regime(User) :-
-    income(User, Income),
-    total_deductions(User, Deducted),
-    user(User, Age, _),
-
-    % old regime
-    age_based_exemption(Age, Exempt),
-    OldTaxable is Income - Deducted - Exempt,
-    get_sorted_slabs(old, OldSlabs),
-    progressive_tax(OldTaxable, 0, OldSlabs, 0, OldTax),
-
-    % new regime
-    get_sorted_slabs(new, NewSlabs),
-    progressive_tax(Income, 0, NewSlabs, 0, NewTax),
-
-    (
-        OldTax < NewTax ->
-        format("~w should choose Old Regime. Tax: ₹~2f~n", [User, OldTax])
-        ;
-        format("~w should choose New Regime. Tax: ₹~2f~n", [User, NewTax])
-    ).
+suggest_regime(BestRegime, OldTax, NewTax) :-
+    compute_tax(old, OldTax),
+    compute_tax(new, NewTax),
+    (OldTax < NewTax -> BestRegime = old ; BestRegime = new).
 
 % -----------------------------
-% Quantifier Examples
+% Deduction Gap Logic
 
-% List all users
-list_users :-
-    forall(user(Name, _, _), writeln(Name)).
+% 80C combined cap
+deduction_gap('80C', Gap) :-
+    findall(Amount,
+        (member(Section, ['80C', 'EPF', 'LifeInsurance', 'NPS']),
+         deduction(Section, Amount)),
+        Amounts),
+    sum_list(Amounts, Total),
+    Gap is 150000 - Total,
+    Gap > 0.
 
-% List user tax amounts
-list_user_taxes :-
-    forall(user(Name, _, _),
-        ( compute_progressive_tax(Name, Tax),
-          format("~w pays ₹~2f tax~n", [Name, Tax])
-        )
-    ).
-
-% List unused deduction space
-deduction_gap(User, Section, Gap) :-
-    deductions(User, Section, Used),
-    max_deduction(Section, Max),
+% 80D logic based on age
+deduction_gap('80D', Gap) :-
+    (deduction('80D', Used) -> true ; Used = 0),
+    max_deduction('80D', Max),
     Gap is Max - Used,
     Gap > 0.
 
-show_all_gaps :-
-    forall(deduction_gap(User, Section, Gap),
-        format("~w can still use ₹~w under ~w~n", [User, Gap, Section])
-    ).
-
+% Other deductions (non-80C, non-80D)
+deduction_gap(S, Gap) :-
+    \+ member(S, ['80C', 'EPF', 'LifeInsurance', 'NPS', '80D']),
+    (deduction(S, Used) -> true ; Used = 0),
+    max_deduction(S, Max),
+    Gap is Max - Used,
+    Gap > 0.
 % -----------------------------
-% Simulate Extra Deduction
+% Deduction Tips (including 80C)
 
-simulate_extra(User, Section, Extra) :-
-    deductions(User, Section, Used),
-    max_deduction(Section, Max),
-    Possible is min(Used + Extra, Max),
-    Delta is Possible - Used,
-
-    total_deductions(User, Current),
-    NewDeducted is Current + Delta,
-
-    user(User, Age, _),
-    age_based_exemption(Age, Exempt),
-
-    income(User, Income),
-    NewTaxable is Income - NewDeducted - Exempt,
-    get_sorted_slabs(old, Slabs),
-    progressive_tax(NewTaxable, 0, Slabs, 0, NewTax),
-
-    format("If ~w invests ₹~w more in ~w, new tax is ₹~2f~n", [User, Delta, Section, NewTax]).
-
-simulate_multiple_investments(User, Section) :-
-    between(0, 50000, Extra),
-    simulate_extra(User, Section, Extra),
+print_deduction_tips :-
+    deduction_gap(S, G),
+    format("💡 Tip: Invest ₹~w more in ~w to save tax.~n", [G, S]),
     fail.
-simulate_multiple_investments(_, _).
+print_deduction_tips.
 
 % -----------------------------
-% Explain Suggestion Reason
+% Regime Explanation
 
-why_suggested(User) :-
-    income(User, Income),
-    total_deductions(User, Deducted),
-    user(User, Age, _),
-    age_based_exemption(Age, Exempt),
+explain_choice(OldTax, NewTax, Deductions) :-
+    Diff is OldTax - NewTax,
+    Diff > 0,
+    format("📌 The New Regime is suggested as it saves ₹~2f more tax than the Old Regime. You claimed deductions of ₹~w, which may not be fully beneficial in the Old Regime.~n", [Diff, Deductions]).
 
-    OldTaxable is Income - Deducted - Exempt,
-    get_sorted_slabs(old, OldSlabs),
-    progressive_tax(OldTaxable, 0, OldSlabs, 0, OldTax),
-
-    get_sorted_slabs(new, NewSlabs),
-    progressive_tax(Income, 0, NewSlabs, 0, NewTax),
-
-    format("User: ~w~nIncome: ₹~w~nDeductions: ₹~w~nExemption: ₹~w~n", [User, Income, Deducted, Exempt]),
-    format("Old Regime Taxable: ₹~w~nTax: ₹~2f~n", [OldTaxable, OldTax]),
-    format("New Regime Taxable: ₹~w~nTax: ₹~2f~n", [Income, NewTax]),
-
-    (
-        OldTax < NewTax ->
-        writeln("Suggested: Old Regime (Lower Tax)")
-        ;
-        writeln("Suggested: New Regime (Lower Tax)")
-    ).
+explain_choice(OldTax, NewTax, Deductions) :-
+    Diff is NewTax - OldTax,
+    Diff >= 0,
+    format("📌 The Old Regime is suggested as it saves ₹~2f more tax due to your total deductions of ₹~w.~n", [Diff, Deductions]).
 
 % -----------------------------
-% Check for Deduction Errors (evasion risk)
+% Final Tax Summary
 
-check_tax_evasion(User) :-
-    deductions(User, Section, Amount),
-    max_deduction(Section, Max),
-    Amount > Max,
-    format("⚠️ Warning: ~w claimed ₹~w in ~w (Limit: ₹~w)~n", [User, Amount, Section, Max]).
-
-% -----------------------------
-% Summary Report
-
-user_summary(User) :-
-    user(User, Age, Regime),
-    income(User, Income),
-    total_deductions(User, Deducted),
-    taxable_income(User, Taxable),
-    compute_progressive_tax(User, Tax),
-    format("User: ~w~nAge: ~w~nRegime: ~w~nIncome: ₹~w~nDeductions: ₹~w~nTaxable: ₹~w~nTax: ₹~2f~n~n",
-           [User, Age, Regime, Income, Deducted, Taxable, Tax]).
+tax_summary :-
+    income(Income),
+    age(Age),
+    total_deductions(TotalDeduction),
+    compute_tax(old, OldTax),
+    compute_tax(new, NewTax),
+    suggest_regime(BestRegime, OldTax, NewTax),
+    taxable_income(BestRegime, TaxableIncome),
+    format("📊 Tax Analysis Suggestion:~n~n"),
+    format("🪙 Income: ₹~w~n", [Income]),
+    format("👤 Age: ~w~n", [Age]),
+    format("📉 Deductions (incl. ₹50,000 standard): ₹~w~n", [TotalDeduction]),
+    format("💰 Taxable Income: ₹~w~n", [TaxableIncome]),
+    format("🧮 Old Regime Tax (w/ surcharge): ₹~2f~n", [OldTax]),
+    format("🧮 New Regime Tax (w/ surcharge): ₹~2f~n", [NewTax]),
+    format("🎯 Suggested Regime: ~w~n", [BestRegime]),
+    explain_choice(OldTax, NewTax, TotalDeduction),
+    print_deduction_tips.

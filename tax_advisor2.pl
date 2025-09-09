@@ -50,13 +50,13 @@ max_deduction('NPS', 50000).
 % Utility Rules
 
 % Get tax slab structure based on income
-get_slab(Income, tax("0–2.5L", "0%")) :-
+get_slab(Income, tax("0-2.5L", "0%")) :-
     Income =< 250000, !.
 
-get_slab(Income, tax("2.5L–5L", "5%")) :-
+get_slab(Income, tax("2.5L-5L", "5%")) :-
     Income =< 500000, !.
 
-get_slab(Income, tax("5L–10L", "20%")) :-
+get_slab(Income, tax("5L-10L", "20%")) :-
     Income =< 1000000, !.
 
 get_slab(_, tax("10L+", "30%")).
@@ -70,8 +70,24 @@ sum_list_custom([H|T], Sum) :-
     sum_list_custom(T, Rest),
     Sum is H + Rest.
 
-not_claimed(Section) :-
-    \+ deduction(Section, _).
+% -----------------------------
+% Not Claimed Sections
+
+% Major deduction sections
+deduction_sections(['80C', '80D', '80CCD(1B)', 'EPF', 'NPS', 'Life Insurance']).
+
+% Not claimed = section not present in deductions
+not_claimed(S) :-
+    deduction_sections(All),
+    member(S, All),
+    \+ deduction(S, _).
+
+
+% Suggest all unclaimed deduction sections
+suggest_unclaimed_deductions(Suggestions) :-
+    findall(Section,
+        (max_deduction(Section, _), not_claimed(Section)),
+        Suggestions).
 
 first_tax_slab(Regime, Limit, Rate) :-
     tax_slab(Regime, Limit, Rate), !.
@@ -134,7 +150,7 @@ progressive_tax(Income, PrevLimit, [(Limit, Rate)|Rest], Acc, Tax) :-
     progressive_tax(Income, Limit, Rest, NewAcc, Tax).
 
 % -----------------------------
-%surcharge application
+% Surcharge application
 apply_surcharge(Regime, BaseTax, FinalTax) :-
     income(I),
     findall((Limit, Rate), surcharge(Regime, Limit, Rate), Slabs),
@@ -172,7 +188,7 @@ suggest_regime(BestRegime, OldTax, NewTax) :-
 
 deduction_gap('80C', Gap) :-
     findall(Amount,
-        (member(Section, ['80C', 'EPF', 'LifeInsurance', 'NPS']),
+        (member(Section, ['80C', 'EPF', 'Life Insurance', 'NPS']),
          deduction(Section, Amount)),
         Amounts),
     sum_list_custom(Amounts, Total),
@@ -186,7 +202,7 @@ deduction_gap('80D', Gap) :-
     Gap > 0.
 
 deduction_gap(S, Gap) :-
-    \+ member(S, ['80C', 'EPF', 'LifeInsurance', 'NPS', '80D']),
+    \+ member(S, ['80C', 'EPF', 'Life Insurance', 'NPS', '80D']),
     (deduction(S, Used) -> true ; Used = 0),
     max_deduction(S, Max),
     Gap is Max - Used,
@@ -243,4 +259,11 @@ tax_summary :-
     format("Suggested Regime: ~w~n", [BestRegime]),
     explain_choice(OldTax, NewTax, TotalDeduction),
     print_deduction_tips,
+
+    % NEW: Show unclaimed sections
+    suggest_unclaimed_deductions(Unclaimed),
+    ( Unclaimed \= [] ->
+        format("⚠️ You have not claimed deductions under: ~w~n", [Unclaimed])
+    ; true ),
+
     show_text_chart(OldTax, NewTax).
