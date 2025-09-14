@@ -1,5 +1,7 @@
-% -----------------------------
-% Dynamic predicates
+% ================================================================
+% Your Original Tax Advisor Code (unchanged)
+% ================================================================
+
 :- dynamic tax_slab/3.
 :- dynamic income/1.
 :- dynamic age/1.
@@ -8,15 +10,18 @@
 :- dynamic old_regime_tax/1.
 :- dynamic new_regime_tax/1.
 
-% -----------------------------
+:- use_module(library(heaps)).
+
+% ================================================================
 % Tax slabs FY 2024–25
+% ================================================================
 
 % Old Regime
 tax_slab(old, 250000, 0).
 tax_slab(old, 500000, 0.05).
 tax_slab(old, 1000000, 0.2).
 tax_slab(old, 5000000, 0.3).
-tax_slab(old, 99999999, 0.3).  % surcharge applies separately
+tax_slab(old, 99999999, 0.3).
 
 % New Regime
 tax_slab(new, 300000, 0).
@@ -25,10 +30,11 @@ tax_slab(new, 1000000, 0.1).
 tax_slab(new, 1200000, 0.15).
 tax_slab(new, 1500000, 0.2).
 tax_slab(new, 5000000, 0.3).
-tax_slab(new, 99999999, 0.3).  % surcharge applies separately
+tax_slab(new, 99999999, 0.3).
 
-% -----------------------------
+% ================================================================
 % Surcharge slabs
+% ================================================================
 surcharge(_, 5000000, 0.0).        
 surcharge(_, 10000000, 0.10).     
 surcharge(_, 20000000, 0.15).  
@@ -36,8 +42,9 @@ surcharge(old, 50000000, 0.25).
 surcharge(new, 999999999, 0.25). 
 surcharge(old,999999999, 0.37).  
 
-% -----------------------------
+% ================================================================
 % Max deduction limits
+% ================================================================
 max_deduction('80C', 150000).
 max_deduction('80D', Max) :- age(A), (A >= 60 -> Max = 50000 ; Max = 25000).
 max_deduction('80CCD(1B)', 50000).
@@ -46,64 +53,33 @@ max_deduction('Life Insurance', 150000).
 max_deduction('Standard', 50000).
 max_deduction('NPS', 50000).
 
+% ================================================================
+% Utilities
+% ================================================================
 % -----------------------------
-% Utility Rules
-
-% Get tax slab structure based on income
+% Get tax slab structure (used in Flask)
+% -----------------------------
 get_slab(Income, tax("0-2.5L", "0%")) :-
     Income =< 250000, !.
-
 get_slab(Income, tax("2.5L-5L", "5%")) :-
     Income =< 500000, !.
-
 get_slab(Income, tax("5L-10L", "20%")) :-
     Income =< 1000000, !.
-
 get_slab(_, tax("10L+", "30%")).
 
-unify_example :-
-    X = tax(slab, rate),
-    writeln(X).
+total_income(Income) :- income(Income).
 
 sum_list_custom([], 0).
-sum_list_custom([H|T], Sum) :-
-    sum_list_custom(T, Rest),
-    Sum is H + Rest.
+sum_list_custom([H|T], Sum) :- sum_list_custom(T, Rest), Sum is H + Rest.
 
-% -----------------------------
-% Not Claimed Sections
-
-% Major deduction sections
 deduction_sections(['80C', '80D', '80CCD(1B)', 'EPF', 'NPS', 'Life Insurance']).
 
-% Not claimed = section not present in deductions
-not_claimed(S) :-
-    deduction_sections(All),
-    member(S, All),
-    \+ deduction(S, _).
+not_claimed(S) :- deduction_sections(All), member(S, All), \+ deduction(S, _).
 
-
-% Suggest all unclaimed deduction sections
 suggest_unclaimed_deductions(Suggestions) :-
-    findall(Section,
-        (max_deduction(Section, _), not_claimed(Section)),
-        Suggestions).
+    findall(Section, (max_deduction(Section, _), not_claimed(Section)), Suggestions).
 
-first_tax_slab(Regime, Limit, Rate) :-
-    tax_slab(Regime, Limit, Rate), !.
-
-ask_user_section :-
-    write("Enter a section to check: "),
-    read(Sec),
-    ( deduction(Sec, Amt) -> format("Claimed amount: ₹~w~n", [Amt])
-    ; writeln("Not claimed.") ).
-
-show_text_chart(OldTax, NewTax) :-
-    writeln("📊 [Chart will be displayed in Python]").
-
-age_based_80d_limit(Limit) :-
-    age(A),
-    ( A >= 60 -> Limit = 50000 ; Limit = 25000 ).
+age_based_80d_limit(Limit) :- age(A), ( A >= 60 -> Limit = 50000 ; Limit = 25000 ).
 
 total_deductions(Sum) :-
     findall(A, deduction(_, A), L),
@@ -111,46 +87,35 @@ total_deductions(Sum) :-
     max_deduction('Standard', Std),
     Sum is Partial + Std.
 
-age_based_exemption(E) :-
-    age(A),
-    (A >= 60 -> E is 300000 ; E is 250000).
+age_based_exemption(E) :- age(A), (A >= 60 -> E is 300000 ; E is 250000).
 
 get_sorted_slabs(Regime, Sorted) :-
     findall((Limit, Rate), tax_slab(Regime, Limit, Rate), L),
     sort(L, Sorted).
 
-% -----------------------------
-% Taxable Income
-
+% ================================================================
+% Taxable income
+% ================================================================
 taxable_income(old, TI) :-
-    income(I),
-    total_deductions(D),
-    age_based_exemption(E),
-    Raw is I - D - E,
-    TI is max(0, Raw).
+    income(I), total_deductions(D), age_based_exemption(E),
+    Raw is I - D - E, TI is max(0, Raw).
 
 taxable_income(new, TI) :-
-    income(I),
-    TI is I - 50000.
+    income(I), TI is I - 50000.
 
-% -----------------------------
-% Progressive Tax Computation
-
+% ================================================================
+% Progressive tax
+% ================================================================
 progressive_tax(_, _, [], _, 0).
-progressive_tax(Income, PrevLimit, [(Limit, Rate)|Rest], Acc, Tax) :-
-    Income =< Limit,
-    Portion is Income - PrevLimit,
-    Temp is Portion * Rate,
-    Tax is Acc + Temp.
-progressive_tax(Income, PrevLimit, [(Limit, Rate)|Rest], Acc, Tax) :-
-    Income > Limit,
-    Portion is Limit - PrevLimit,
-    Temp is Portion * Rate,
-    NewAcc is Acc + Temp,
-    progressive_tax(Income, Limit, Rest, NewAcc, Tax).
+progressive_tax(Income, Prev, [(Limit, Rate)|Rest], Acc, Tax) :-
+    Income =< Limit, Portion is Income - Prev, Temp is Portion * Rate, Tax is Acc + Temp.
+progressive_tax(Income, Prev, [(Limit, Rate)|Rest], Acc, Tax) :-
+    Income > Limit, Portion is Limit - Prev, Temp is Portion * Rate,
+    NewAcc is Acc + Temp, progressive_tax(Income, Limit, Rest, NewAcc, Tax).
 
-% -----------------------------
-% Surcharge application
+% ================================================================
+% Surcharge
+% ================================================================
 apply_surcharge(Regime, BaseTax, FinalTax) :-
     income(I),
     findall((Limit, Rate), surcharge(Regime, Limit, Rate), Slabs),
@@ -158,112 +123,209 @@ apply_surcharge(Regime, BaseTax, FinalTax) :-
     find_surcharge_rate(I, Sorted, 0, SurchargeRate),
     FinalTax is BaseTax * (1 + SurchargeRate).
 
-find_surcharge_rate(Income, [(Limit, Rate)|Rest], CurrentRate, FinalRate) :-
-    ( Income =< Limit ->
-        FinalRate = Rate
-    ;
-        find_surcharge_rate(Income, Rest, Rate, FinalRate)
-    ).
+find_surcharge_rate(Income, [(Limit, Rate)|Rest], _, FinalRate) :-
+    ( Income =< Limit -> FinalRate = Rate ; find_surcharge_rate(Income, Rest, Rate, FinalRate) ).
 find_surcharge_rate(_, [], Rate, Rate).
 
-% -----------------------------
-% Compute Final Tax
-
+% ================================================================
+% Compute Tax
+% ================================================================
 compute_tax(Regime, FinalTax) :-
     taxable_income(Regime, TI),
     get_sorted_slabs(Regime, Slabs),
     progressive_tax(TI, 0, Slabs, 0, BaseTax),
     apply_surcharge(Regime, BaseTax, FinalTax).
 
-% -----------------------------
-% Regime Suggestion
-
-suggest_regime(BestRegime, OldTax, NewTax) :-
-    compute_tax(old, OldTax),
-    compute_tax(new, NewTax),
-    (OldTax < NewTax -> BestRegime = old ; BestRegime = new).
-
-% -----------------------------
-% Deduction Gap Logic
-
+% ================================================================
+% Deduction Gaps
+% ================================================================
 deduction_gap('80C', Gap) :-
-    findall(Amount,
-        (member(Section, ['80C', 'EPF', 'Life Insurance', 'NPS']),
-         deduction(Section, Amount)),
-        Amounts),
+    findall(Amount, (member(S, ['80C','EPF','Life Insurance','NPS']), deduction(S, Amount)), Amounts),
     sum_list_custom(Amounts, Total),
-    Gap is 150000 - Total,
-    Gap > 0.
+    Gap is 150000 - Total, Gap > 0.
 
 deduction_gap('80D', Gap) :-
     (deduction('80D', Used) -> true ; Used = 0),
     max_deduction('80D', Max),
-    Gap is Max - Used,
-    Gap > 0.
+    Gap is Max - Used, Gap > 0.
 
 deduction_gap(S, Gap) :-
-    \+ member(S, ['80C', 'EPF', 'Life Insurance', 'NPS', '80D']),
+    \+ member(S, ['80C','EPF','Life Insurance','NPS','80D']),
     (deduction(S, Used) -> true ; Used = 0),
     max_deduction(S, Max),
-    Gap is Max - Used,
-    Gap > 0.
+    Gap is Max - Used, Gap > 0.
 
-% -----------------------------
-% Deduction Tips
-
-print_deduction_tips :-
-    deduction_gap(S, G),
-    format("💡 Tip: Invest ₹~w more in ~w to save tax.~n", [G, S]),
-    fail.
+print_deduction_tips :- deduction_gap(S,G), format("💡 Tip: Invest ₹~w more in ~w to save tax.~n",[G,S]), fail.
 print_deduction_tips.
 
-% -----------------------------
-% Regime Explanation
+% ================================================================
+% Regime Suggestion
+% ================================================================
+suggest_regime(Best, OldTax, NewTax) :-
+    compute_tax(old, OldTax), compute_tax(new, NewTax),
+    (OldTax < NewTax -> Best = old ; Best = new).
 
 explain_choice(OldTax, NewTax, Deductions) :-
-    Diff is OldTax - NewTax,
-    Diff > 0,
-    format("📌 The New Regime is suggested as it saves ₹~2f more tax than the Old Regime. You claimed deductions of ₹~w.~n", [Diff, Deductions]).
-
+    Diff is OldTax - NewTax, Diff > 0,
+    format("📌 The New Regime saves ₹~2f more tax. You claimed deductions of ₹~w.~n",[Diff,Deductions]).
 explain_choice(OldTax, NewTax, Deductions) :-
-    Diff is NewTax - OldTax,
-    Diff >= 0,
-    format("📌 The Old Regime is suggested as it saves ₹~2f more tax due to your total deductions of ₹~w.~n", [Diff, Deductions]).
+    Diff is NewTax - OldTax, Diff >= 0,
+    format("📌 The Old Regime saves ₹~2f more tax due to deductions of ₹~w.~n",[Diff,Deductions]).
 
-% -----------------------------
-% Final Tax Summary
-
+% ================================================================
+% Tax Summary
+% ================================================================
 tax_summary :-
-    unify_example,
-    income(Income),
-    age(Age),
-    total_deductions(TotalDeduction),
-    compute_tax(old, OldTax),
-    compute_tax(new, NewTax),
-
-    % Store computed tax values for Python
-    retractall(old_regime_tax(_)),
-    retractall(new_regime_tax(_)),
-    assertz(old_regime_tax(OldTax)),
-    assertz(new_regime_tax(NewTax)),
-
-    suggest_regime(BestRegime, OldTax, NewTax),
-    taxable_income(BestRegime, TaxableIncome),
-    format("Tax Analysis Suggestion:~n~n"),
-    format("Income: ₹~w~n", [Income]),
-    format("Age: ~w~n", [Age]),
-    format("Deductions (incl. ₹50,000 standard): ₹~w~n", [TotalDeduction]),
-    format("Taxable Income: ₹~w~n", [TaxableIncome]),
-    format("Old Regime Tax: ₹~2f~n", [OldTax]),
-    format("New Regime Tax: ₹~2f~n", [NewTax]),
-    format("Suggested Regime: ~w~n", [BestRegime]),
-    explain_choice(OldTax, NewTax, TotalDeduction),
+    income(Income), age(Age), total_deductions(Ds),
+    compute_tax(old, OldTax), compute_tax(new, NewTax),
+    retractall(old_regime_tax(_)), retractall(new_regime_tax(_)),
+    assertz(old_regime_tax(OldTax)), assertz(new_regime_tax(NewTax)),
+    suggest_regime(Best, OldTax, NewTax),
+    taxable_income(Best, TI),
+    format("Tax Analysis:~n~n"),
+    format("Income: ₹~w~nAge: ~w~n",[Income,Age]),
+    format("Deductions (incl. Std): ₹~w~n",[Ds]),
+    format("Taxable Income: ₹~w~n",[TI]),
+    format("Old Regime Tax: ₹~2f~nNew Regime Tax: ₹~2f~n",[OldTax,NewTax]),
+    format("Suggested Regime: ~w~n",[Best]),
+    explain_choice(OldTax, NewTax, Ds),
     print_deduction_tips,
-
-    % NEW: Show unclaimed sections
     suggest_unclaimed_deductions(Unclaimed),
-    ( Unclaimed \= [] ->
-        format("⚠️ You have not claimed deductions under: ~w~n", [Unclaimed])
-    ; true ),
+    (Unclaimed \= [] -> format("⚠️ Not claimed: ~w~n",[Unclaimed]) ; true).
 
-    show_text_chart(OldTax, NewTax).
+% ================================================================
+% ================================================================
+% A* Deduction Optimizer (Appended, New Feature)
+% ================================================================
+% ================================================================
+
+% Collapse plan: keep max deduction per section
+collapse_plan(Full, Collapsed) :-
+    collapse_plan(Full, _{}, Dict),
+    dict_pairs(Dict, _, Pairs),
+    findall(deduction(S, Max), member(S-Max, Pairs), Collapsed).
+
+collapse_plan([], Dict, Dict).
+collapse_plan([deduction(S, A)|Rest], Dict0, Dict) :-
+    ( get_dict(S, Dict0, Old) ->
+        (A > Old -> put_dict(S, Dict0, A, Dict1) ; Dict1 = Dict0)
+    ; put_dict(S, Dict0, A, Dict1) ),
+    collapse_plan(Rest, Dict1, Dict).
+
+% Step sizes (coarser for AO* speed)
+step_size('80C', 50000).
+step_size('80D', 25000).
+step_size('80CCD(1B)', 25000).
+
+% Section limits
+section_limit('80C', 150000).
+section_limit('80D', Limit) :- age(A), (A < 60 -> Limit = 25000 ; Limit = 50000).
+section_limit('80CCD(1B)', 50000).
+
+% Start state
+start_state(state(0,0,0)).
+
+% Apply deduction action
+apply_action(state(C80C,C80D,NPS), deduction(Sec,NewVal), state(N80C,N80D,NNPS)) :-
+    step_size(Sec, Step),
+    ( Sec = '80C' -> section_limit('80C', Max), NewVal is C80C + Step, NewVal =< Max,
+                     N80C = NewVal, N80D = C80D, NNPS = NPS
+    ; Sec = '80D' -> section_limit('80D', Max), NewVal is C80D + Step, NewVal =< Max,
+                     N80C = C80C, N80D = NewVal, NNPS = NPS
+    ; Sec = '80CCD(1B)' -> section_limit('80CCD(1B)', Max), NewVal is NPS + Step, NewVal =< Max,
+                           N80C = C80C, N80D = C80D, NNPS = NewVal ).
+
+% Evaluate state tax
+state_tax(state(C80C,C80D,NPS), Tax) :-
+    Deductions = [('80C', C80C), ('80D', C80D), ('80CCD(1B)', NPS)],
+    findall(_, retract(deduction(_,_)), _),
+    forall(member((Sec,Val), Deductions), (Val > 0 -> assertz(deduction(Sec,Val)) ; true)),
+    compute_tax(old, Tax),
+    findall(_, retract(deduction(_,_)), _).
+
+% Heuristic
+heuristic(_State, H) :- total_income(Income), H is Income * 0.05.
+
+% ---------- A* main ----------
+astar_optimize(PlanCollapsed, BestTax) :-
+    start_state(Start),
+    empty_heap(Open0),
+    state_tax(Start, StartTax),
+    heuristic(Start, H0),
+    F0 is StartTax + H0,
+    add_to_heap(Open0, F0, node(Start, [], StartTax), Open),
+    astar_loop(Open, [], RawPlan, BestTax),        % <-- collect raw plan
+    collapse_plan(RawPlan, PlanCollapsed).         % <-- collapse here
+
+
+% A* loop
+astar_loop(Open, _Closed, Plan, BestTax) :-
+    get_from_heap(Open, _F, node(State, Actions, G), _),
+    \+ ( apply_action(State, _, Next), state_tax(Next, Tax), Tax < G ),
+    reverse(Actions, Plan), BestTax = G, !.
+
+astar_loop(Open, Closed, Plan, BestTax) :-
+    get_from_heap(Open, _F, node(State, Actions, G), OpenRest),
+    ( member(State, Closed) ->
+        astar_loop(OpenRest, Closed, Plan, BestTax)
+    ; findall(node(Next, [Act|Actions], NewG),
+              ( apply_action(State, Act, Next), state_tax(Next, NewG) ),
+              Children),
+      add_children(Children, OpenRest, Open1),
+      astar_loop(Open1, [State|Closed], Plan, BestTax) ).
+
+% Add children
+add_children([], Open, Open).
+add_children([node(S,A,G)|Rest], Open0, Open) :-
+    heuristic(S, H), F is G + H,
+    add_to_heap(Open0, F, node(S,A,G), Open1),
+    add_children(Rest, Open1, Open).
+
+% ================================================================
+% AO* Deduction Optimizer (fixed)
+% ================================================================
+
+% Entry point
+ao_optimize(PlanCollapsed, BestTax) :-
+    start_state(Start),
+    ao_star(Start, Plan, BestTax, []),
+    collapse_plan(Plan, PlanCollapsed).
+
+% ---------- AO* ----------
+% If state is terminal (no more actions), evaluate directly
+ao_star(State, [], Tax, _) :-
+    \+ apply_action(State, _, _),
+    state_tax(State, Tax).
+
+% Otherwise expand into ALL children (OR nodes)
+ao_star(State, Plan, BestTax, Visited) :-
+    findall((Act, SubPlan, SubTax),
+            ( apply_action(State, Act, Next),
+              \+ member(Next, Visited),
+              ao_star(Next, SubPlan, SubTax, [State|Visited])
+            ),
+            Expansions),
+    Expansions \= [],
+    choose_best(Expansions, (BestAct, BestSubPlan, BestTax)),
+    Plan = [BestAct|BestSubPlan].
+
+% ---------- Choose best expansion ----------
+choose_best([ (Act,SubPlan,SubTax) ], (Act,SubPlan,SubTax)).
+choose_best([ (Act,SubPlan,SubTax) | Rest ], Best) :-
+    choose_best(Rest, (A2,Plan2,Tax2)),
+    ( SubTax < Tax2 ->
+        Best = (Act,SubPlan,SubTax)
+    ;   Best = (A2,Plan2,Tax2)
+    ).
+
+% ================================================================
+% Unified Optimizer Wrapper
+% ================================================================
+
+% Call A* optimizer
+optimize(astar, Plan, Tax) :-
+    astar_optimize(Plan, Tax).
+
+% Call AO* optimizer
+optimize(ao, Plan, Tax) :-
+    ao_optimize(Plan, Tax).

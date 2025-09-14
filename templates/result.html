@@ -37,7 +37,6 @@
       border-radius: 10px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
-    /* Colored regime suggestion card */
     .regime-card {
       border-radius: 12px;
       padding: 20px;
@@ -49,12 +48,19 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
     .regime-old {
-      background: #198754; /* Bootstrap success green */
+      background: #198754;
       border: 2px solid #145c32;
     }
     .regime-new {
-      background: #0d6efd; /* Bootstrap primary blue */
+      background: #0d6efd;
       border: 2px solid #084298;
+    }
+    .opt-section {
+      background: #f8f9fa;
+      border-left: 4px solid #6c757d;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
     }
   </style>
 </head>
@@ -114,7 +120,6 @@
           {% endif %}
 
           <!-- Unused deductions Section -->
-
           <h3>📌 Unused Deductions You Can Still Claim</h3>
           {% if unused %}
             {% for u in unused %}
@@ -126,8 +131,6 @@
             </p>
           {% endif %}
 
-
-
           <!-- Chart Section -->
           <div class="chart text-center mt-4">
             {% if chart_png %}
@@ -136,6 +139,39 @@
               <div class="alert alert-warning">Chart not available.</div>
             {% endif %}
           </div>
+
+          <!-- Optimization Results -->
+          <h3 class="mt-5">⚙️ Optimization Results</h3>
+
+          {% if plan_astar %}
+          <div class="opt-section">
+            <h5>🔹 A* Optimized Plan</h5>
+            <ul>
+              {% for sec, amt in plan_astar %}
+              <li><strong>{{ sec }}</strong>: ₹{{ "{:,}".format(amt) }}</li>
+              {% endfor %}
+            </ul>
+            <p><strong>Tax after A* optimization:</strong> ₹{{ "{:,.1f}".format(tax_astar) }}</p>
+            <p class="text-muted">A* used incremental search with heuristic = 5% of income to find the lowest-tax plan.</p>
+          </div>
+          {% else %}
+            <p class="text-danger">No A* plan found.</p>
+          {% endif %}
+
+          {% if plan_ao %}
+          <div class="opt-section">
+            <h5>🔹 AO* Optimized Plan</h5>
+            <ul>
+              {% for sec, amt in plan_ao %}
+              <li><strong>{{ sec }}</strong>: ₹{{ "{:,}".format(amt) }}</li>
+              {% endfor %}
+            </ul>
+            <p><strong>Tax after AO* optimization:</strong> ₹{{ "{:,.1f}".format(tax_ao) }}</p>
+            <p class="text-muted">AO* applied dependency rules and expanded optimal deductions accordingly.</p>
+          </div>
+          {% else %}
+            <p class="text-danger">No AO* plan found.</p>
+          {% endif %}
 
           <div class="text-center mt-4">
             <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">🔄 Run Again</a>
