@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VC Dimension Result</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(120deg, #f6f9fc, #e9f2f9);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .card {
+      border-radius: 15px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .btn-custom {
+      background-color: #007bff;
+      color: white;
+      font-weight: bold;
+    }
+    .btn-custom:hover {
+      background-color: #0056b3;
+    }
+    .diagnosis {
+      font-style: italic;
+      color: #444;
+    }
+    .underfit { color: #dc3545; font-weight: 600; }
+    .overfit { color: #fd7e14; font-weight: 600; }
+    .goodfit { color: #198754; font-weight: 600; }
+    img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      background: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-8 col-md-10">
+        <div class="card p-4 text-center">
+          <h2 class="mb-3">📊 VC Dimension Result</h2>
+          <p class="lead">Current VC Dimension: <strong>{{ vc_value }}</strong></p>
+          <hr>
+
+          <h5>Old Regime Model</h5>
+          <p><b>Train Accuracy:</b> {{ train_old }} <br>
+             <b>Test Accuracy:</b> {{ acc_old }} <br>
+             <span class="diagnosis 
+                {% if 'Underfit' in diag_old or 'Underfitting' in diag_old %}underfit
+                {% elif 'Overfit' in diag_old or 'overfit' in diag_old %}overfit
+                {% else %}goodfit{% endif %}">
+                {{ diag_old }}
+            </span>
+          </p>
+          <hr>
+
+          <h5>New Regime Model</h5>
+          <p><b>Train Accuracy:</b> {{ train_new }} <br>
+             <b>Test Accuracy:</b> {{ acc_new }} <br>
+             <span class="diagnosis 
+                {% if 'Underfit' in diag_new or 'Underfitting' in diag_new %}underfit
+                {% elif 'Overfit' in diag_new or 'overfit' in diag_new %}overfit
+                {% else %}goodfit{% endif %}">
+                {{ diag_new }}
+             </span>
+          </p>
+
+         <hr>
+            <h4>📈 Accuracy vs VC Dimension</h4>
+            <p class="text-muted">Separate curves for Old and New Regime models.</p>
+
+            <div class="mb-4">
+            <h5>Old Regime Model</h5>
+            <img src="data:image/png;base64,{{ chart_old }}" alt="Old Regime VC Curve">
+            </div>
+
+            <div class="mb-4">
+            <h5>New Regime Model</h5>
+            <img src="data:image/png;base64,{{ chart_new }}" alt="New Regime VC Curve">
+            </div>
+
+          <hr>
+            <h4>📝 Explanation</h4>
+            <p class="text-muted">{{ vc_explanation }}</p>
+
+          <div class="mt-4">
+            <a href="/" class="btn btn-custom btn-lg">⬅️ Go Back</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

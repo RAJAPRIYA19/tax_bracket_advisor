@@ -1,5 +1,5 @@
 % ================================================================
-% Your Original Tax Advisor Code (unchanged)
+% Tax Advisor Code with Old/New Bracket Fix + Export Both Brackets
 % ================================================================
 
 :- dynamic tax_slab/3.
@@ -9,6 +9,7 @@
 :- dynamic deduction/2.
 :- dynamic old_regime_tax/1.
 :- dynamic new_regime_tax/1.
+:- dynamic case/6.
 
 :- use_module(library(heaps)).
 
@@ -56,9 +57,6 @@ max_deduction('NPS', 50000).
 % ================================================================
 % Utilities
 % ================================================================
-% -----------------------------
-% Get tax slab structure (used in Flask)
-% -----------------------------
 get_slab(Income, tax("0-2.5L", "0%")) :-
     Income =< 250000, !.
 get_slab(Income, tax("2.5L-5L", "5%")) :-
@@ -165,33 +163,15 @@ suggest_regime(Best, OldTax, NewTax) :-
     compute_tax(old, OldTax), compute_tax(new, NewTax),
     (OldTax < NewTax -> Best = old ; Best = new).
 
-explain_choice(OldTax, NewTax, Deductions) :-
-    Diff is OldTax - NewTax, Diff > 0,
-    format("📌 The New Regime saves ₹~2f more tax. You claimed deductions of ₹~w.~n",[Diff,Deductions]).
-explain_choice(OldTax, NewTax, Deductions) :-
-    Diff is NewTax - OldTax, Diff >= 0,
-    format("📌 The Old Regime saves ₹~2f more tax due to deductions of ₹~w.~n",[Diff,Deductions]).
-
 % ================================================================
 % Tax Summary
 % ================================================================
 tax_summary :-
-    income(Income), age(Age), total_deductions(Ds),
+    income(_), age(_), total_deductions(_),
     compute_tax(old, OldTax), compute_tax(new, NewTax),
     retractall(old_regime_tax(_)), retractall(new_regime_tax(_)),
     assertz(old_regime_tax(OldTax)), assertz(new_regime_tax(NewTax)),
-    suggest_regime(Best, OldTax, NewTax),
-    taxable_income(Best, TI),
-    format("Tax Analysis:~n~n"),
-    format("Income: ₹~w~nAge: ~w~n",[Income,Age]),
-    format("Deductions (incl. Std): ₹~w~n",[Ds]),
-    format("Taxable Income: ₹~w~n",[TI]),
-    format("Old Regime Tax: ₹~2f~nNew Regime Tax: ₹~2f~n",[OldTax,NewTax]),
-    format("Suggested Regime: ~w~n",[Best]),
-    explain_choice(OldTax, NewTax, Ds),
-    print_deduction_tips,
-    suggest_unclaimed_deductions(Unclaimed),
-    (Unclaimed \= [] -> format("⚠️ Not claimed: ~w~n",[Unclaimed]) ; true).
+    suggest_regime(_, OldTax, NewTax).
 
 % ================================================================
 % ================================================================
@@ -329,3 +309,94 @@ optimize(astar, Plan, Tax) :-
 % Call AO* optimizer
 optimize(ao, Plan, Tax) :-
     ao_optimize(Plan, Tax).
+
+
+% ================================================================
+% Bracket determination (fixed)
+% ================================================================
+bracket_from_ti(Regime, TI, Bracket) :-
+    findall(Limit, tax_slab(Regime, Limit, _), Limits),
+    sort(Limits, Sorted),
+    bracket_from_limits(Regime, Sorted, TI, Bracket).
+
+bracket_from_limits(Regime, [Limit|Rest], TI, Bracket) :-
+    ( TI =< Limit -> slab_label(Regime, Limit, Bracket)
+    ; bracket_from_limits(Regime, Rest, TI, Bracket) ).
+bracket_from_limits(_, [], _, '30%').
+
+% Old regime slab labels
+slab_label(old, Limit, '0%')  :- Limit =< 250000, !.
+slab_label(old, Limit, '5%')  :- Limit =< 500000, !.
+slab_label(old, Limit, '20%') :- Limit =< 1000000, !.
+slab_label(old, _, '30%').
+
+% New regime slab labels
+slab_label(new, Limit, '0%')  :- Limit =< 300000, !.
+slab_label(new, Limit, '5%')  :- Limit =< 700000, !.
+slab_label(new, Limit, '10%') :- Limit =< 1000000, !.
+slab_label(new, Limit, '15%') :- Limit =< 1200000, !.
+slab_label(new, Limit, '20%') :- Limit =< 1500000, !.
+slab_label(new, _, '30%').
+
+% ================================================================
+% ML case export
+% ================================================================
+% case(Name, Age, Income, TotalDeductions, OldBracket, NewBracket)
+
+save_current_case(Name) :-
+    age(A), income(I), total_deductions(D),
+    taxable_income(old, TI_old),
+    taxable_income(new, TI_new),
+    bracket_from_ti(old, TI_old, BOld),
+    bracket_from_ti(new, TI_new, BNew),
+    assertz(case(Name,A,I,D,BOld,BNew)).
+
+% Export helper (write or append)
+export_cases(File, Mode) :-
+    ( Mode = write ->
+        open(File, write, Stream),
+        format(Stream, 'name,age,income,total_deductions,old_bracket,new_bracket~n', [])
+    ; Mode = append ->
+        open(File, append, Stream)
+    ),
+    forall(
+        case(Name,A,I,D,BOld,BNew),
+        format(Stream, '~w,~w,~w,~w,~w,~w~n', [Name,A,I,D,BOld,BNew])
+    ),
+    close(Stream).
+
+% ================================================================
+% Auto-generate synthetic training cases for ML
+% ================================================================
+generate_cases :-
+    retractall(case(_,_,_,_,_,_)),
+    forall(
+        ( between(25, 70, BaseAge),
+          member(BaseIncome, [200000,400000,600000,800000,1000000,1500000,2000000]),
+          member(BaseD, [0,25000,50000,100000,150000])
+        ),
+        (
+            random_between(-3, 3, NoiseAge),
+            Age is max(18, BaseAge + NoiseAge),
+            random_between(-25000, 25000, NoiseI),
+            Income is BaseIncome + NoiseI,
+            random_between(-5000, 5000, NoiseD),
+            TempD is BaseD + NoiseD,
+            (TempD < 0 -> D = 0 ; D = TempD),
+            retractall(age(_)), retractall(income(_)), retractall(deduction(_,_)),
+            assertz(age(Age)),
+            assertz(income(Income)),
+            assertz(deduction('80C', D)),
+            ( catch(tax_summary, _, fail) ->
+                gensym(case_, Name),
+                save_current_case(Name)
+            ; true )
+        )
+    ),
+    % Always refresh synthetic dataset
+    export_cases('synthetic_cases.csv', write),
+    % Initialize cases.csv only if missing
+    (   \+ exists_file('cases.csv')
+    ->  export_cases('cases.csv', write)
+    ;   true
+    ).

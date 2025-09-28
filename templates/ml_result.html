@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ML vs Prolog Classification</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .result-card {
+      border-radius: 15px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+      background: #fff;
+      padding: 2rem;
+    }
+    .prediction-box {
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    .ml-box {
+      background: #e7f1ff;
+      border: 2px solid #0d6efd;
+      color: #0d6efd;
+    }
+    .prolog-box {
+      background: #e8f8f0;
+      border: 2px solid #198754;
+      color: #198754;
+    }
+    .agreement-yes {
+      background: #d1e7dd;
+      color: #0f5132;
+      font-weight: bold;
+    }
+    .agreement-no {
+      background: #f8d7da;
+      color: #842029;
+      font-weight: bold;
+    }
+    .info-text {
+      font-size: 0.9rem;
+      color: #6c757d;
+    }
+    .regime-badge {
+      font-size: 1.1rem;
+      padding: 0.6rem 1.2rem;
+      border-radius: 12px;
+      font-weight: bold;
+    }
+    .old-badge {
+      background: #fff3cd;
+      color: #856404;
+      border: 2px solid #ffeeba;
+    }
+    .new-badge {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 2px solid #bee5eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-5">
+    <div class="result-card mx-auto col-lg-8 col-md-10">
+      <h2 class="text-center mb-4">⚖️ ML vs Prolog Classification of Tax Slab</h2>
+
+      <!-- Suggested Regime -->
+      {% if suggested_regime %}
+        <div class="text-center mb-4">
+          {% if suggested_regime == "old" %}
+            <span class="regime-badge old-badge">📜 Suggested Regime: Old Regime</span>
+          {% else %}
+            <span class="regime-badge new-badge">📘 Suggested Regime: New Regime</span>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      {% if ml_prediction and prolog_prediction %}
+        <!-- Prediction Boxes -->
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <div class="prediction-box ml-box">
+              🤖 ML Prediction <br>
+              <span style="font-size:1.4rem;">{{ ml_prediction }}</span>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="prediction-box prolog-box">
+              📜 Prolog Prediction <br>
+              <span style="font-size:1.4rem;">{{ prolog_prediction }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input + Results Table -->
+        <div class="table-responsive">
+          <table class="table table-bordered text-center">
+            <thead class="table-light">
+              <tr><th>Input</th><th>Value</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Age</td><td>{{ age }}</td></tr>
+              <tr><td>Income</td><td>₹{{ "{:,.0f}".format(income) }}</td></tr>
+              <tr><td>Total Deductions</td><td>₹{{ "{:,.0f}".format(total_deductions) }}</td></tr>
+              <tr class="{% if agreement %}agreement-yes{% else %}agreement-no{% endif %}">
+                <td>Agreement?</td>
+                <td>
+                  {% if agreement %}✅ Yes — Both match
+                  {% else %}❌ No — Mismatch{% endif %}
+                </td>
+              </tr>
+              <tr>
+                <td>Cross-Validation Accuracy ({{ suggested_regime|capitalize }} Regime)</td>
+                <td>{{ ml_accuracy }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Info Text -->
+        <p class="text-center info-text">
+          ML learns patterns from past cases (synthetic + user inputs).  
+          Prolog uses exact symbolic rules.  
+          Comparing both shows how close ML is to rule-based reasoning.
+        </p>
+      {% else %}
+        <p class="text-center">📊 No classification yet. Enter your details and run classification.</p>
+        <p class="text-center">Current ML Accuracy: {{ ml_accuracy }}</p>
+      {% endif %}
+
+      <!-- Navigation -->
+      <div class="text-center mt-4">
+        <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">⬅️ Back to Home</a>
+      </div>
+
+      <!-- Decision Tree -->
+      {% if tree_png %}
+        <div class="mt-5">
+          <h4 class="text-center">🌳 Decision Tree (Depth {{ max_depth }})</h4>
+          <img src="data:image/png;base64,{{ tree_png }}" class="img-fluid rounded shadow">
+        </div>
+      {% endif %}
+
+       <!-- Feature Importance -->
+      {% if feature_importances %}
+        <div class="mt-5">
+          <h4 class="text-center">📊 Feature Importance</h4>
+          <div class="table-responsive">
+            <table class="table table-bordered text-center">
+              <thead class="table-light">
+                <tr><th>Feature</th><th>Importance</th></tr>
+              </thead>
+              <tbody>
+                {% for feat, score in feature_importances.items() %}
+                <tr>
+                  <td>{{ feat }}</td>
+                  <td>{{ "%.2f"|format(score * 100) }}%</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="text-center info-text">
+            Higher importance means the feature influences the ML model’s decision more.
+          </p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>
