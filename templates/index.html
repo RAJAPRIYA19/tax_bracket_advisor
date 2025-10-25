@@ -110,13 +110,30 @@
             </div>
 
             <div class="d-grid">
-              <button type="submit" formaction="{{ url_for('result') }}" class="btn btn-custom btn-lg">
-                Calculate & Show Recommendation (Prolog)
-              </button><br>
-              <button type="submit" formaction="{{ url_for('classify_page') }}" class="btn btn-secondary btn-lg">
-                ⚖️ Compare ML vs Prolog
-              </button>
-            </div>
+            <button type="submit" formaction="{{ url_for('result') }}" class="btn btn-custom btn-lg">
+              Calculate & Show Recommendation (Prolog)
+            </button><br>
+
+            <!-- Existing DT classifier compare -->
+            <button type="submit" formaction="{{ url_for('classify_page') }}" class="btn btn-custom btn-lg">
+              Compare ML vs Prolog (classification)
+            </button><br>
+
+            <!-- Regression comparison -->
+            <button type="submit"
+                    formaction="{{ url_for('compare_rf_single') }}"
+                    formmethod="post"
+                    class="btn btn-custom btn-lg">
+              Compare ML vs Prolog (regression)
+            </button><br>
+
+            <!-- 🌐 NEW: Clustering experiment -->
+            <a href="{{ url_for('run_kmeans_clustering') }}"
+              class="btn btn-custom btn-lg">
+              View K-Means Clustering Results
+            </a>
+          </div>
+
           </form>
 
           <!-- Separate VC Form -->
@@ -125,7 +142,14 @@
             <label>Set VC Dimension (tree depth):</label>
             <input type="number" name="vc_value" min="1" max="20" value="4" class="form-control mb-2">
             <button type="submit" class="btn btn-secondary btn-lg w-100">Update VC</button>
-          </form>
+          </form><br>
+
+          
+            <!-- 🧠 VC-Based PAC Learning -->
+            <a href="{{ url_for('train_vc_pac_trees') }}"
+              class="btn btn-secondary btn-lg w-100">
+              VC-Based PAC Learning Results
+            </a>
 
         </div>
       </div>

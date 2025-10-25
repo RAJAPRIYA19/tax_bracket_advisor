@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ML vs Prolog Regression</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { 
+      background: linear-gradient(135deg, #f8f9fa, #e9ecef); 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    }
+    .result-card { 
+      border-radius: 15px; 
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08); 
+      background: #fff; 
+      padding: 2rem; 
+    }
+    .prediction-box { 
+      border-radius: 12px; 
+      padding: 1.5rem; 
+      text-align: center; 
+      font-size: 1.1rem; 
+      font-weight: bold; 
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .prolog-box { 
+      background: #e8f8f0; 
+      border: 2px solid #198754; 
+      color: #198754; 
+    }
+    .rf-box { 
+      background: #e7f1ff; 
+      border: 2px solid #0d6efd; 
+      color: #0d6efd; 
+    }
+    .metrics { 
+      margin-top: 1.5rem; 
+      padding: 1rem; 
+      background: #f1f3f5; 
+      border-radius: 12px; 
+    }
+    .metrics h5 { 
+      margin-bottom: 1rem; 
+      font-weight: bold; 
+    }
+    .regime-badge {
+      font-size: 1.1rem;
+      padding: 0.6rem 1.2rem;
+      border-radius: 12px;
+      font-weight: bold;
+    }
+    .old-badge {
+      background: #fff3cd;
+      color: #856404;
+      border: 2px solid #ffeeba;
+    }
+    .new-badge {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 2px solid #bee5eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-5">
+    <div class="result-card mx-auto col-lg-10 col-md-12">
+      <h2 class="text-center mb-4">⚖️ Prolog vs ML Models (Regression)</h2>
+
+      {% if suggested_regime %}
+        <div class="text-center mb-4">
+          {% if suggested_regime == "old" %}
+            <span class="regime-badge old-badge">📜 Suggested Regime: Old Regime</span>
+          {% else %}
+            <span class="regime-badge new-badge">📘 Suggested Regime: New Regime</span>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <!-- Old Regime -->
+      <h4 class="mb-3">Old Regime Tax</h4>
+      <div class="row g-3 mb-4">
+        <div class="col-md-6 d-flex">
+          <div class="prediction-box prolog-box w-100">
+            📜 Prolog<br>₹{{ "{:,.2f}".format(old_tax_prolog) }}
+          </div>
+        </div>
+        <div class="col-md-6 d-flex">
+          <div class="prediction-box rf-box w-100">
+            🌲 RF<br>₹{{ "{:,.2f}".format(old_tax_rf) }}
+          </div>
+        </div>
+      </div>
+
+      <!-- New Regime -->
+      <h4 class="mb-3">New Regime Tax</h4>
+      <div class="row g-3 mb-4">
+        <div class="col-md-6 d-flex">
+          <div class="prediction-box prolog-box w-100">
+            📜 Prolog<br>₹{{ "{:,.2f}".format(new_tax_prolog) }}
+          </div>
+        </div>
+        <div class="col-md-6 d-flex">
+          <div class="prediction-box rf-box w-100">
+            🌲 RF<br>₹{{ "{:,.2f}".format(new_tax_rf) }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Error Metrics -->
+      <div class="metrics">
+        <h5>Error Metrics</h5>
+
+        <p>
+          <strong>RF (Old Regime):</strong><br>
+          MAE = ₹{{ "{:,.2f}".format(mae_rf_old) }} 
+          (Normalized = {{ "{:.3f}".format(mae_rf_old_n) }})<br>
+          RMSE = ₹{{ "{:,.2f}".format(rmse_rf_old) }} 
+          (Normalized = {{ "{:.3f}".format(rmse_rf_old_n) }})
+        </p>
+
+        <p>
+          <strong>RF (New Regime):</strong><br>
+          MAE = ₹{{ "{:,.2f}".format(mae_rf_new) }} 
+          (Normalized = {{ "{:.3f}".format(mae_rf_new_n) }})<br>
+          RMSE = ₹{{ "{:,.2f}".format(rmse_rf_new) }} 
+          (Normalized = {{ "{:.3f}".format(rmse_rf_new_n) }})
+        </p>
+      </div>
+
+      <!-- Inputs -->
+      <div class="table-responsive mt-4">
+        <table class="table table-bordered text-center">
+          <thead class="table-light">
+            <tr><th>Input</th><th>Value</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Age</td><td>{{ age }}</td></tr>
+            <tr><td>Income</td><td>₹{{ "{:,.0f}".format(income) }}</td></tr>
+            <tr><td>Total Deductions</td><td>₹{{ "{:,.0f}".format(total_deductions) }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="text-center mt-4">
+        <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">⬅ Back to Home</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
